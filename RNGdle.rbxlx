@@ -348,8 +348,8 @@ end
 ----------------------------------------------------------------
 local WHITE = Color3.new(1, 1, 1)
 local GOLD = Color3.fromRGB(255, 215, 90)
-local DIM = Color3.fromRGB(150, 156, 180)
-local BOX_STROKE = Color3.fromRGB(70, 76, 120)
+local DIM = Color3.fromRGB(155, 155, 160)
+local BOX_STROKE = Color3.fromRGB(58, 58, 64)
 
 local function make(class, props, parent)
 	local inst = Instance.new(class)
@@ -383,6 +383,14 @@ local function button(parent, text, color, props)
 	}, parent)
 	for k, v in pairs(props or {}) do b[k] = v end
 	corner(b, 0.22)
+	-- мягкий глянцевый градиент + тёмная рамка
+	make("UIGradient", {
+		Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(175, 175, 175)), Rotation = 90,
+	}, b)
+	make("UIStroke", {
+		Color = Color3.new(0, 0, 0), Thickness = 2, Transparency = 0.35,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	}, b)
 	make("UITextSizeConstraint", { MaxTextSize = 34 }, b)
 	make("UIPadding", {
 		PaddingTop = UDim.new(0.2, 0), PaddingBottom = UDim.new(0.2, 0),
@@ -408,7 +416,7 @@ end
 
 local function row(list, height, order)
 	local r = make("Frame", {
-		Size = UDim2.new(1, -10, 0, height), BackgroundColor3 = Color3.fromRGB(32, 35, 64),
+		Size = UDim2.new(1, -10, 0, height), BackgroundColor3 = Color3.fromRGB(25, 25, 28),
 		BorderSizePixel = 0, LayoutOrder = order,
 	}, list)
 	corner(r, 0.12)
@@ -442,7 +450,7 @@ local bg = make("Frame", {
 	ClipsDescendants = true, ZIndex = 1,
 }, gui)
 make("UIGradient", {
-	Color = ColorSequence.new(Color3.fromRGB(28, 30, 62), Color3.fromRGB(8, 9, 18)), Rotation = 90,
+	Color = ColorSequence.new(Color3.fromRGB(20, 20, 22), Color3.fromRGB(3, 3, 4)), Rotation = 90,
 }, bg)
 
 -- плавающие цифры на фоне
@@ -490,7 +498,7 @@ UI.coinsLabel = label(stage, {
 }, 34)
 
 UI.incomeLabel = label(stage, {
-	Text = "", Font = Enum.Font.GothamBold, TextColor3 = Color3.fromRGB(190, 196, 220),
+	Text = "", Font = Enum.Font.GothamBold, TextColor3 = Color3.fromRGB(196, 196, 200),
 	TextXAlignment = Enum.TextXAlignment.Right,
 	Position = UDim2.fromScale(0.36, 0.083), Size = UDim2.fromScale(0.58, 0.03),
 }, 18)
@@ -551,7 +559,7 @@ make("UIListLayout", {
 UI.boxes, UI.digits, UI.boxStrokes, UI.boxScales = {}, {}, {}, {}
 for i = 1, 6 do
 	local box = make("Frame", {
-		Size = UDim2.new(0, 100, 1, 0), BackgroundColor3 = Color3.fromRGB(26, 29, 54),
+		Size = UDim2.new(0, 100, 1, 0), BackgroundColor3 = Color3.fromRGB(18, 18, 20),
 		BorderSizePixel = 0, LayoutOrder = i,
 	}, holder)
 	corner(box, 0.12)
@@ -572,7 +580,10 @@ UI.rollBtn = button(stage, "КРУТИТЬ", Color3.fromRGB(46, 190, 100), {
 	AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.645), Size = UDim2.fromScale(0.36, 0.11),
 })
 make("UISizeConstraint", { MaxSize = Vector2.new(360, 90) }, UI.rollBtn)
-stroke(UI.rollBtn, Color3.fromRGB(20, 110, 60), 3)
+do
+	local rs = UI.rollBtn:FindFirstChildOfClass("UIStroke")
+	rs.Color = Color3.fromRGB(110, 255, 160); rs.Thickness = 3; rs.Transparency = 0.45
+end
 
 -- кнопка "в сейф" (появляется после крутки)
 UI.saveBtn = button(stage, "В СЕЙФ", Color3.fromRGB(235, 170, 40), {
@@ -581,13 +592,13 @@ UI.saveBtn = button(stage, "В СЕЙФ", Color3.fromRGB(235, 170, 40), {
 })
 make("UISizeConstraint", { MaxSize = Vector2.new(190, 56) }, UI.saveBtn)
 
-UI.autoBtn = button(stage, "АВТО: ЗАКРЫТО", Color3.fromRGB(70, 74, 100), {
+UI.autoBtn = button(stage, "АВТО: ЗАКРЫТО", Color3.fromRGB(56, 56, 62), {
 	AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.74), Size = UDim2.fromScale(0.26, 0.055),
 })
 make("UISizeConstraint", { MaxSize = Vector2.new(260, 56) }, UI.autoBtn)
 
 UI.statsLabel = label(stage, {
-	Text = "", Font = Enum.Font.Gotham, TextColor3 = Color3.fromRGB(170, 176, 200),
+	Text = "", Font = Enum.Font.Gotham, TextColor3 = Color3.fromRGB(172, 172, 176),
 	Position = UDim2.fromScale(0.04, 0.782), Size = UDim2.fromScale(0.92, 0.035),
 }, 18)
 
@@ -612,14 +623,22 @@ local function addBadge(btn)
 	return b
 end
 
-UI.btnShop = button(menu, "МАГАЗИН", Color3.fromRGB(255, 150, 40), { LayoutOrder = 1 })
-UI.btnSafe = button(menu, "СЕЙФ", Color3.fromRGB(235, 190, 40), { LayoutOrder = 2 })
-UI.btnSlot = button(menu, "СЛОТ 777", Color3.fromRGB(230, 60, 90), { LayoutOrder = 3 })
-UI.btnGift = button(menu, "ПОДАРОК", Color3.fromRGB(40, 190, 170), { LayoutOrder = 4 })
-UI.btnColl = button(menu, "КОЛЛЕКЦИЯ", Color3.fromRGB(150, 90, 250), { LayoutOrder = 5 })
-UI.btnBonus = button(menu, "БОНУСЫ", Color3.fromRGB(90, 110, 255), { LayoutOrder = 6 })
-UI.btnAch = button(menu, "НАГРАДЫ", Color3.fromRGB(70, 170, 90), { LayoutOrder = 7 })
-UI.btnHist = button(menu, "ИСТОРИЯ", Color3.fromRGB(55, 140, 240), { LayoutOrder = 8 })
+-- кнопки меню: чёрный графит + цветная рамка-акцент
+local function menuButton(text, accent, order)
+	local b = button(menu, text, Color3.fromRGB(20, 20, 23), { LayoutOrder = order })
+	local st = b:FindFirstChildOfClass("UIStroke")
+	st.Color = accent; st.Thickness = 2; st.Transparency = 0.1
+	b.TextColor3 = accent:Lerp(WHITE, 0.55)
+	return b
+end
+UI.btnShop = menuButton("МАГАЗИН", Color3.fromRGB(255, 150, 40), 1)
+UI.btnSafe = menuButton("СЕЙФ", Color3.fromRGB(235, 190, 40), 2)
+UI.btnSlot = menuButton("СЛОТ 777", Color3.fromRGB(230, 60, 90), 3)
+UI.btnGift = menuButton("ПОДАРОК", Color3.fromRGB(40, 190, 170), 4)
+UI.btnColl = menuButton("КОЛЛЕКЦИЯ", Color3.fromRGB(205, 205, 215), 5)
+UI.btnBonus = menuButton("БОНУСЫ", Color3.fromRGB(150, 225, 60), 6)
+UI.btnAch = menuButton("НАГРАДЫ", Color3.fromRGB(70, 170, 90), 7)
+UI.btnHist = menuButton("ИСТОРИЯ", Color3.fromRGB(55, 140, 240), 8)
 UI.badgeGift = addBadge(UI.btnGift)
 UI.badgeSlot = addBadge(UI.btnSlot)
 
@@ -642,16 +661,16 @@ local panels = {}
 
 local function makePanel(title)
 	local overlay = make("TextButton", {
-		Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.35,
+		Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.2,
 		Text = "", AutoButtonColor = false, Visible = false, ZIndex = 20, BorderSizePixel = 0,
 	}, gui)
 	local frame = make("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromScale(0.88, 0.86), BackgroundColor3 = Color3.fromRGB(20, 22, 42),
+		Size = UDim2.fromScale(0.88, 0.86), BackgroundColor3 = Color3.fromRGB(15, 15, 17),
 		BorderSizePixel = 0, Active = true,
 	}, overlay)
 	corner(frame, 0.03)
-	stroke(frame, Color3.fromRGB(90, 96, 150), 3)
+	stroke(frame, Color3.fromRGB(72, 72, 80), 3)
 	make("UISizeConstraint", { MaxSize = Vector2.new(780, 600) }, frame)
 
 	label(frame, {
@@ -1072,7 +1091,15 @@ function FX.play(tier)
 	local pal = { c, WHITE, c:Lerp(WHITE, 0.5), GOLD }
 	FX.sound(({ "", "", "rare", "epic", "legendary", "mythic", "secret" })[tier], 1)
 
-	if tier == 3 then
+	if tier == 1 then
+		-- ОБЫЧНОЕ: почти без эффектов, лёгкий отклик
+		FX.burst(cx, cy, 4, { c }, 90, 200, "dot")
+	elseif tier == 2 then
+		-- НЕОБЫЧНОЕ: небольшая вспышка и пара частиц
+		FX.flash(c, 0.08, 0.35)
+		FX.ring(cx, cy, c, 300, 0.5, 4)
+		FX.burst(cx, cy, 10, { c, c:Lerp(WHITE, 0.5) }, 110, 260, "square")
+	elseif tier == 3 then
 		FX.flash(c, 0.15, 0.5)
 		FX.ring(cx, cy, c, 520, 0.7, 6)
 		FX.burst(cx, cy, 26, pal, 160, 380, "square")
@@ -1113,7 +1140,7 @@ function FX.play(tier)
 		FX.echoText(t.name .. "!!", WHITE)
 		task.delay(0.5, function() FX.echoText(t.name .. "!!", c) end)
 		FX.pulseBoxes(14)
-	else
+	elseif tier == 7 then
 		-- СЕКРЕТНОЕ: всё и сразу
 		FX.glitch(0.9)
 		FX.strobe(RAINBOW, 14, 0.07, 0.7)
@@ -1208,7 +1235,7 @@ local toastN = 0
 local function toast(text, color)
 	toastN = toastN + 1
 	local f = make("Frame", {
-		Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = Color3.fromRGB(20, 22, 42),
+		Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = Color3.fromRGB(15, 15, 17),
 		BorderSizePixel = 0, LayoutOrder = toastN, ZIndex = 60,
 	}, toastHolder)
 	corner(f, 0.25)
@@ -1427,12 +1454,12 @@ function shop.refresh()
 		simpleText(r, item.name .. "  (ур. " .. lvl .. "/" .. item.max .. ")",
 			UDim2.new(0, 14, 0, 8), UDim2.new(0.62, 0, 0, 26), 20)
 		simpleText(r, item.desc, UDim2.new(0, 14, 0, 34), UDim2.new(0.62, 0, 0, 40), 13,
-			Color3.fromRGB(170, 176, 200), Enum.Font.Gotham)
+			Color3.fromRGB(172, 172, 176), Enum.Font.Gotham)
 		simpleText(r, item.info(lvl), UDim2.new(0, 14, 0, 74), UDim2.new(0.62, 0, 0, 18), 14,
 			GOLD, Enum.Font.GothamBold)
 		local text, color
 		if lvl >= item.max then
-			text, color = "МАКС", Color3.fromRGB(80, 84, 110)
+			text, color = "МАКС", Color3.fromRGB(64, 64, 70)
 		else
 			local cost = item.cost(lvl)
 			text = fmt(cost) .. " монет"
@@ -1475,9 +1502,9 @@ function collection.refresh()
 		corner(bar, 0.5)
 		simpleText(r, t.name, UDim2.new(0, 28, 0, 8), UDim2.new(0.5, 0, 0, 26), 21, t.color, Enum.Font.GothamBlack)
 		simpleText(r, "Шанс: 1 из " .. fmt(t.odds) .. "   |   Награда: " .. fmt(t.coins),
-			UDim2.new(0, 28, 0, 34), UDim2.new(0.7, 0, 0, 18), 14, Color3.fromRGB(200, 205, 225), Enum.Font.GothamBold)
+			UDim2.new(0, 28, 0, 34), UDim2.new(0.7, 0, 0, 18), 14, Color3.fromRGB(208, 208, 212), Enum.Font.GothamBold)
 		simpleText(r, t.desc, UDim2.new(0, 28, 0, 54), UDim2.new(1, -150, 0, 34), 13,
-			Color3.fromRGB(150, 156, 180), Enum.Font.Gotham)
+			Color3.fromRGB(155, 155, 160), Enum.Font.Gotham)
 		simpleText(r, "Найдено: " .. fmt(data.found[t.id] or 0), UDim2.new(1, -130, 0, 10),
 			UDim2.new(0, 120, 0, 22), 16, WHITE, Enum.Font.GothamBold, Enum.TextXAlignment.Right)
 	end
@@ -1492,7 +1519,7 @@ function bonusPanel.refresh()
 	local head = row(bonusPanel.list, 54, 0)
 	simpleText(head, "Бонусы суммируются с наградой за редкость. Открыто: " .. bonusKinds() .. " из " .. #BONUSES
 		.. ". Выбивай семёрки — Магнит семёрок в магазине поможет!",
-		UDim2.new(0, 14, 0, 8), UDim2.new(1, -28, 0, 40), 14, Color3.fromRGB(190, 196, 220), Enum.Font.GothamBold)
+		UDim2.new(0, 14, 0, 8), UDim2.new(1, -28, 0, 40), 14, Color3.fromRGB(196, 196, 200), Enum.Font.GothamBold)
 	for i, b in ipairs(BONUSES) do
 		local r = row(bonusPanel.list, 62, i)
 		local n = data.bonus[b.id] or 0
@@ -1500,11 +1527,11 @@ function bonusPanel.refresh()
 		simpleText(r, b.name, UDim2.new(0, 14, 0, 6), UDim2.new(0.62, 0, 0, 24), 18,
 			seven and GOLD or WHITE, Enum.Font.GothamBlack)
 		simpleText(r, b.desc, UDim2.new(0, 14, 0, 32), UDim2.new(0.66, 0, 0, 26), 13,
-			Color3.fromRGB(150, 156, 180), Enum.Font.Gotham)
+			Color3.fromRGB(155, 155, 160), Enum.Font.Gotham)
 		simpleText(r, "+" .. fmt(b.coins), UDim2.new(1, -150, 0, 8), UDim2.new(0, 138, 0, 24), 20,
 			GOLD, Enum.Font.GothamBlack, Enum.TextXAlignment.Right)
 		simpleText(r, "Выпало: " .. fmt(n), UDim2.new(1, -150, 0, 34), UDim2.new(0, 138, 0, 20), 14,
-			n > 0 and Color3.fromRGB(120, 230, 150) or Color3.fromRGB(120, 124, 150), Enum.Font.GothamBold,
+			n > 0 and Color3.fromRGB(120, 230, 150) or Color3.fromRGB(112, 112, 118), Enum.Font.GothamBold,
 			Enum.TextXAlignment.Right)
 	end
 end
@@ -1544,7 +1571,7 @@ function safePanel.refresh()
 
 	local hint = row(safePanel.list, 44, 1)
 	simpleText(hint, "Нажми «В СЕЙФ» (или клавишу F) после крутки, чтобы сохранить число. Чем реже число — тем больше оно приносит.",
-		UDim2.new(0, 14, 0, 5), UDim2.new(1, -28, 0, 36), 13, Color3.fromRGB(150, 156, 180), Enum.Font.Gotham)
+		UDim2.new(0, 14, 0, 5), UDim2.new(1, -28, 0, 36), 13, Color3.fromRGB(155, 155, 160), Enum.Font.Gotham)
 
 	for i, e in ipairs(data.safe) do
 		local t = TIERS[e.t] or TIERS[1]
@@ -1552,7 +1579,7 @@ function safePanel.refresh()
 		stroke(r, t.color, 2)
 		simpleText(r, e.n, UDim2.new(0, 14, 0, 6), UDim2.new(0.34, 0, 0, 34), 30, t.color, Enum.Font.GothamBlack)
 		simpleText(r, t.name .. ((e.why and e.why ~= "") and ("  •  " .. e.why) or ""),
-			UDim2.new(0, 14, 0, 42), UDim2.new(0.6, 0, 0, 20), 13, Color3.fromRGB(190, 196, 220), Enum.Font.GothamBold)
+			UDim2.new(0, 14, 0, 42), UDim2.new(0.6, 0, 0, 20), 13, Color3.fromRGB(196, 196, 200), Enum.Font.GothamBold)
 		local rate = math.max(1, math.floor(t.coins * 0.02)) * 2
 		simpleText(r, "+" .. fmt(rate) .. " монет/мин", UDim2.new(0.38, 0, 0, 14), UDim2.new(0.26, 0, 0, 22), 15,
 			GOLD, Enum.Font.GothamBold)
@@ -1588,15 +1615,15 @@ function safePanel.refresh()
 	local empty = safeCapacity() - #data.safe
 	for i = 1, math.min(empty, 3) do
 		local r = row(safePanel.list, 44, 500 + i)
-		r.BackgroundColor3 = Color3.fromRGB(26, 28, 50)
+		r.BackgroundColor3 = Color3.fromRGB(20, 20, 22)
 		simpleText(r, "— пустой слот —", UDim2.new(0, 14, 0, 12), UDim2.new(1, -28, 0, 22), 16,
-			Color3.fromRGB(100, 104, 135), Enum.Font.GothamBold)
+			Color3.fromRGB(88, 88, 94), Enum.Font.GothamBold)
 	end
 	if empty > 3 then
 		local r = row(safePanel.list, 36, 600)
-		r.BackgroundColor3 = Color3.fromRGB(26, 28, 50)
+		r.BackgroundColor3 = Color3.fromRGB(20, 20, 22)
 		simpleText(r, "...и ещё " .. (empty - 3) .. " пустых слотов", UDim2.new(0, 14, 0, 8), UDim2.new(1, -28, 0, 20), 14,
-			Color3.fromRGB(100, 104, 135), Enum.Font.GothamBold)
+			Color3.fromRGB(88, 88, 94), Enum.Font.GothamBold)
 	end
 end
 
@@ -1635,7 +1662,7 @@ function history.refresh()
 		simpleText(r, h.n, UDim2.new(0, 14, 0, 9), UDim2.new(0.34, 0, 0, 32), 26, t.color, Enum.Font.GothamBlack)
 		simpleText(r, t.name, UDim2.new(0.36, 0, 0, 16), UDim2.new(0.3, 0, 0, 22), 16, t.color, Enum.Font.GothamBold)
 		local b = button(r, inSafe(h.n) and "В СЕЙФЕ" or "В СЕЙФ",
-			inSafe(h.n) and Color3.fromRGB(80, 84, 110) or Color3.fromRGB(235, 170, 40), {
+			inSafe(h.n) and Color3.fromRGB(64, 64, 70) or Color3.fromRGB(235, 170, 40), {
 			AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0),
 			Size = UDim2.new(0, 100, 0, 34), TextScaled = false, TextSize = 14,
 		})
@@ -1665,14 +1692,14 @@ function achPanel.refresh()
 		simpleText(r, a.name, UDim2.new(0, 14, 0, 6), UDim2.new(0.6, 0, 0, 22), 18,
 			isDone and Color3.fromRGB(120, 230, 150) or WHITE, Enum.Font.GothamBlack)
 		simpleText(r, a.desc, UDim2.new(0, 14, 0, 28), UDim2.new(0.62, 0, 0, 18), 13,
-			Color3.fromRGB(150, 156, 180), Enum.Font.Gotham)
+			Color3.fromRGB(155, 155, 160), Enum.Font.Gotham)
 		simpleText(r, isDone and "ПОЛУЧЕНО" or ("+" .. fmt(a.reward)), UDim2.new(1, -150, 0, 8), UDim2.new(0, 138, 0, 22), 18,
 			isDone and Color3.fromRGB(120, 230, 150) or GOLD, Enum.Font.GothamBlack, Enum.TextXAlignment.Right)
 		simpleText(r, fmt(prog) .. " / " .. fmt(a.goal), UDim2.new(1, -150, 0, 30), UDim2.new(0, 138, 0, 18), 13,
-			Color3.fromRGB(170, 176, 200), Enum.Font.GothamBold, Enum.TextXAlignment.Right)
+			Color3.fromRGB(172, 172, 176), Enum.Font.GothamBold, Enum.TextXAlignment.Right)
 		local barBg = make("Frame", {
 			Position = UDim2.new(0, 14, 1, -16), Size = UDim2.new(1, -28, 0, 8),
-			BackgroundColor3 = Color3.fromRGB(20, 22, 42), BorderSizePixel = 0,
+			BackgroundColor3 = Color3.fromRGB(15, 15, 17), BorderSizePixel = 0,
 		}, r)
 		corner(barBg, 0.5)
 		local fill = make("Frame", {
@@ -1706,7 +1733,7 @@ function gift.refresh()
 	simpleText(hdr, ready and ("Подарок готов! День " .. day .. " из 7: +" .. fmt(DAILY[day]) .. " монет")
 		or ("Следующий подарок через " .. fmtTime(left)),
 		UDim2.new(0, 14, 0, 12), UDim2.new(1, -190, 0, 66), 18, ready and GOLD or WHITE, Enum.Font.GothamBold)
-	local b = button(hdr, ready and "ЗАБРАТЬ" or "ЖДИ...", ready and Color3.fromRGB(46, 190, 100) or Color3.fromRGB(80, 84, 110), {
+	local b = button(hdr, ready and "ЗАБРАТЬ" or "ЖДИ...", ready and Color3.fromRGB(46, 190, 100) or Color3.fromRGB(64, 64, 70), {
 		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.new(0, 150, 0, 52),
 	})
 	b.MouseButton1Click:Connect(function()
@@ -1901,7 +1928,7 @@ function slot.refresh()
 	}, hold)
 	for i = 1, 3 do
 		local box = make("Frame", {
-			Size = UDim2.fromOffset(110, 130), BackgroundColor3 = Color3.fromRGB(14, 15, 30),
+			Size = UDim2.fromOffset(110, 130), BackgroundColor3 = Color3.fromRGB(9, 9, 10),
 			BorderSizePixel = 0, LayoutOrder = i,
 		}, hold)
 		corner(box, 0.12)
@@ -1933,7 +1960,7 @@ function slot.refresh()
 		.. "пара  =  40\n"
 		.. "одна семёрка  =  30\n\n"
 		.. "Бесплатный спин каждые 5 минут.",
-		UDim2.new(0, 14, 0, 10), UDim2.new(1, -28, 1, -20), 15, Color3.fromRGB(200, 205, 225), Enum.Font.GothamBold)
+		UDim2.new(0, 14, 0, 10), UDim2.new(1, -28, 1, -20), 15, Color3.fromRGB(208, 208, 212), Enum.Font.GothamBold)
 end
 
 ----------------------------------------------------------------
@@ -2162,7 +2189,7 @@ local function rollInner()
 	UI.saveBtn.Visible = true
 	if inSafe(num) then
 		UI.saveBtn.Text = "В СЕЙФЕ"
-		UI.saveBtn.BackgroundColor3 = Color3.fromRGB(80, 84, 110)
+		UI.saveBtn.BackgroundColor3 = Color3.fromRGB(64, 64, 70)
 	else
 		UI.saveBtn.Text = "В СЕЙФ"
 		UI.saveBtn.BackgroundColor3 = Color3.fromRGB(235, 170, 40)
@@ -2177,7 +2204,7 @@ local function roll()
 	if G.rolling then return end
 	G.rolling = true
 	UI.rollBtn.Text = "..."
-	UI.rollBtn.BackgroundColor3 = Color3.fromRGB(70, 74, 100)
+	UI.rollBtn.BackgroundColor3 = Color3.fromRGB(56, 56, 62)
 	resetBoxes()
 	UI.rarityLabel.Text = "КРУТИМ..."
 	UI.rarityLabel.TextColor3 = DIM
@@ -2202,7 +2229,7 @@ UI.saveBtn.MouseButton1Click:Connect(function()
 		trySave(G.last)
 		if inSafe(G.last.n) then
 			UI.saveBtn.Text = "В СЕЙФЕ"
-			UI.saveBtn.BackgroundColor3 = Color3.fromRGB(80, 84, 110)
+			UI.saveBtn.BackgroundColor3 = Color3.fromRGB(64, 64, 70)
 		end
 	end
 end)
@@ -2214,7 +2241,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
 		trySave(G.last)
 		if inSafe(G.last.n) then
 			UI.saveBtn.Text = "В СЕЙФЕ"
-			UI.saveBtn.BackgroundColor3 = Color3.fromRGB(80, 84, 110)
+			UI.saveBtn.BackgroundColor3 = Color3.fromRGB(64, 64, 70)
 		end
 	end
 end)
@@ -2225,13 +2252,13 @@ end)
 local function refreshAutoBtn()
 	if not data.auto then
 		UI.autoBtn.Text = "АВТО: ЗАКРЫТО"
-		UI.autoBtn.BackgroundColor3 = Color3.fromRGB(70, 74, 100)
+		UI.autoBtn.BackgroundColor3 = Color3.fromRGB(56, 56, 62)
 	elseif G.autoOn then
 		UI.autoBtn.Text = "АВТО: ВКЛ"
 		UI.autoBtn.BackgroundColor3 = Color3.fromRGB(46, 190, 100)
 	else
 		UI.autoBtn.Text = "АВТО: ВЫКЛ"
-		UI.autoBtn.BackgroundColor3 = Color3.fromRGB(90, 94, 130)
+		UI.autoBtn.BackgroundColor3 = Color3.fromRGB(78, 78, 86)
 	end
 end
 hooks.auto = refreshAutoBtn
