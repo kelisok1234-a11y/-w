@@ -1,0 +1,847 @@
+<?xml version="1.0" encoding="utf-8"?>
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+<Meta name="ExplicitAutoJoints">true</Meta>
+<Item class="Workspace" referent="RBX0"><Properties><string name="Name">Workspace</string></Properties></Item>
+<Item class="Players" referent="RBX1"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item>
+<Item class="Lighting" referent="RBX2"><Properties><string name="Name">Lighting</string></Properties></Item>
+<Item class="ReplicatedStorage" referent="RBX3"><Properties><string name="Name">ReplicatedStorage</string></Properties></Item>
+<Item class="ServerScriptService" referent="RBX5"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Script" referent="RBX4"><Properties><string name="Name">RNGdleServer</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- RNGdle 2D | Script (ServerScriptService)
+-- Сохранение прогресса игрока через DataStore.
+
+local Players = game:GetService("Players")
+local DataStoreService = game:GetService("DataStoreService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+pcall(function()
+	Players.CharacterAutoLoads = false -- 2D игра: персонаж не нужен
+end)
+
+local loadRemote = Instance.new("RemoteFunction")
+loadRemote.Name = "LoadData"
+loadRemote.Parent = ReplicatedStorage
+
+local saveRemote = Instance.new("RemoteEvent")
+saveRemote.Name = "SaveData"
+saveRemote.Parent = ReplicatedStorage
+
+local store
+pcall(function()
+	store = DataStoreService:GetDataStore("RNGdle_v1")
+end)
+
+local cache = {}
+
+local function save(plr)
+	local data = cache[plr]
+	if store and data then
+		local ok, err = pcall(function()
+			store:SetAsync("player_" .. plr.UserId, data)
+		end)
+		if not ok then warn("[RNGdle] Не удалось сохранить: " .. tostring(err)) end
+	end
+end
+
+loadRemote.OnServerInvoke = function(plr)
+	local result
+	if store then
+		local ok, res = pcall(function()
+			return store:GetAsync("player_" .. plr.UserId)
+		end)
+		if ok then result = res end
+	end
+	cache[plr] = result
+	return result
+end
+
+saveRemote.OnServerEvent:Connect(function(plr, data)
+	if type(data) == "table" then
+		cache[plr] = data
+	end
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+	save(plr)
+	cache[plr] = nil
+end)
+
+game:BindToClose(function()
+	for _, plr in ipairs(Players:GetPlayers()) do
+		save(plr)
+	end
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(90)
+		for _, plr in ipairs(Players:GetPlayers()) do
+			save(plr)
+		end
+	end
+end)
+]]></ProtectedString></Properties></Item></Item>
+<Item class="StarterGui" referent="RBX6"><Properties><string name="Name">StarterGui</string></Properties></Item>
+<Item class="StarterPack" referent="RBX7"><Properties><string name="Name">StarterPack</string></Properties></Item>
+<Item class="StarterPlayer" referent="RBX10"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX9"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="LocalScript" referent="RBX8"><Properties><string name="Name">RNGdleClient</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[local __ok, __err = pcall(function()
+-- RNGdle 2D | LocalScript (StarterPlayerScripts)
+-- Вся игра нарисована через ScreenGui => это чистая 2D игра.
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+task.spawn(function()
+	for _ = 1, 10 do
+		local ok = pcall(function()
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
+		end)
+		if ok then break end
+		task.wait(0.5)
+	end
+end)
+
+----------------------------------------------------------------
+-- РЕДКОСТИ
+----------------------------------------------------------------
+local TIERS = {
+	{ id = "common",    name = "ОБЫЧНОЕ",     color = Color3.fromRGB(165, 172, 186), coins = 1,      odds = 1, desc = "Любое число без особенностей." },
+	{ id = "uncommon",  name = "НЕОБЫЧНОЕ",   color = Color3.fromRGB(90, 215, 115),  coins = 5,      odds = 10, desc = "Три одинаковые цифры в числе, остальные разные (например 414843)." },
+	{ id = "rare",      name = "РЕДКОЕ",      color = Color3.fromRGB(65, 155, 255),  coins = 25,     odds = 15, desc = "4 одинаковые цифры, три пары (112233), фулл-хаус (111223), 4 цифры подряд (3456)." },
+	{ id = "epic",      name = "ЭПИЧЕСКОЕ",   color = Color3.fromRGB(185, 95, 255),  coins = 150,    odds = 585, desc = "Палиндром (123321), две тройки (111222), круглое число (500000)." },
+	{ id = "legendary", name = "ЛЕГЕНДАРНОЕ", color = Color3.fromRGB(255, 175, 30),  coins = 1000,   odds = 925, desc = "Повтор: 676767, 123123, 454545. Мемы: 696969, 420420, 314159." },
+	{ id = "mythic",    name = "МИФИЧЕСКОЕ",  color = Color3.fromRGB(255, 70, 110),  coins = 10000,  odds = 1818, desc = "5 одинаковых цифр (111112) или идеальная лесенка 123456 / 987654." },
+	{ id = "secret",    name = "СЕКРЕТНОЕ",   color = Color3.fromRGB(255, 255, 255), coins = 100000, odds = 100000, desc = "Все 6 цифр одинаковые: 000000, 111111 ... 999999." },
+}
+
+local MEMES = {
+	["676767"] = { 5, "67 67 67 — легенда!" },
+	["696969"] = { 5, "Ну ты понял :)" },
+	["420420"] = { 5, "Мемное число" },
+	["314159"] = { 5, "Число Пи" },
+}
+
+local function isRun(d, a, len, dir)
+	for i = a, a + len - 2 do
+		if d[i + 1] - d[i] ~= dir then return false end
+	end
+	return true
+end
+
+local function hasRun(d, len)
+	for a = 1, 6 - len + 1 do
+		if isRun(d, a, len, 1) or isRun(d, a, len, -1) then return true end
+	end
+	return false
+end
+
+-- возвращает номер редкости (1..7) и причину
+local function classify(s)
+	local d, counts = {}, {}
+	for i = 1, 6 do
+		d[i] = tonumber(s:sub(i, i))
+		counts[d[i]] = (counts[d[i]] or 0) + 1
+	end
+	local g = {}
+	for _, c in pairs(counts) do g[#g + 1] = c end
+	table.sort(g, function(a, b) return a > b end)
+	local g1, g2, g3 = g[1], g[2] or 0, g[3] or 0
+
+	if g1 == 6 then return 7, "Все 6 цифр одинаковые!" end
+	if MEMES[s] then return MEMES[s][1], MEMES[s][2] end
+	if isRun(d, 1, 6, 1) or isRun(d, 1, 6, -1) then return 6, "Идеальная лесенка" end
+	if g1 == 5 then return 6, "5 одинаковых цифр" end
+	if s:sub(1, 3) == s:sub(4, 6) then return 5, "Повтор тройки (ABCABC)" end
+	if s:sub(1, 2) == s:sub(3, 4) and s:sub(3, 4) == s:sub(5, 6) then return 5, "Повтор пары (ABABAB)" end
+	if s == s:reverse() then return 4, "Палиндром" end
+	if g1 == 3 and g2 == 3 then return 4, "Две тройки (AAABBB)" end
+	if s:sub(2) == "00000" then return 4, "Круглое число" end
+	if g1 == 4 then return 3, "4 одинаковые цифры" end
+	if g1 == 2 and g2 == 2 and g3 == 2 then return 3, "Три пары" end
+	if g1 == 3 and g2 == 2 then return 3, "Фулл-хаус" end
+	if hasRun(d, 4) then return 3, "4 цифры подряд" end
+	if g1 == 3 then return 2, "Три одинаковые цифры" end
+	return 1, "Обычное число"
+end
+
+----------------------------------------------------------------
+-- ДАННЫЕ
+----------------------------------------------------------------
+local function newData()
+	return {
+		coins = 0, rolls = 0, luck = 0, speed = 0, auto = false,
+		found = {}, best = { n = "------", t = 0 }, history = {},
+	}
+end
+
+local data = newData()
+local saveRemote = ReplicatedStorage:FindFirstChild("SaveData")
+local dirty = false
+local hooks = {}
+
+-- Загрузка сохранения В ОТДЕЛЬНОМ ПОТОКЕ: если сервер не ответит,
+-- интерфейс всё равно построится и игра будет работать.
+task.spawn(function()
+	task.wait(0.5)
+	local loadRemote = ReplicatedStorage:FindFirstChild("LoadData")
+	if not (loadRemote and loadRemote:IsA("RemoteFunction")) then return end
+	local ok, res = pcall(function() return loadRemote:InvokeServer() end)
+	if ok and type(res) == "table" then
+		for k, v in pairs(newData()) do
+			if res[k] == nil then res[k] = v end
+		end
+		data = res
+		if hooks.hud then pcall(hooks.hud) end
+		if hooks.auto then pcall(hooks.auto) end
+	end
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(3)
+		if not saveRemote then saveRemote = ReplicatedStorage:FindFirstChild("SaveData") end
+		if dirty and saveRemote then
+			dirty = false
+			saveRemote:FireServer(data)
+		end
+	end
+end)
+
+local function fmt(n)
+	local s = tostring(math.floor(n))
+	local r = s:reverse():gsub("(%d%d%d)", "%1 "):reverse()
+	return (r:gsub("^ ", ""))
+end
+
+----------------------------------------------------------------
+-- UI ХЕЛПЕРЫ
+----------------------------------------------------------------
+local WHITE = Color3.new(1, 1, 1)
+
+local function make(class, props, parent)
+	local inst = Instance.new(class)
+	for k, v in pairs(props) do inst[k] = v end
+	inst.Parent = parent
+	return inst
+end
+
+local function corner(parent, r)
+	return make("UICorner", { CornerRadius = UDim.new(r, 0) }, parent)
+end
+
+local function stroke(parent, color, thick)
+	return make("UIStroke", { Color = color, Thickness = thick or 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, parent)
+end
+
+local function label(parent, props, maxText)
+	local l = make("TextLabel", {
+		BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextColor3 = WHITE,
+		TextScaled = true, BorderSizePixel = 0,
+	}, parent)
+	for k, v in pairs(props) do l[k] = v end
+	if maxText then make("UITextSizeConstraint", { MaxTextSize = maxText }, l) end
+	return l
+end
+
+local function button(parent, text, color, props)
+	local b = make("TextButton", {
+		Text = text, Font = Enum.Font.GothamBlack, TextColor3 = WHITE, BackgroundColor3 = color,
+		AutoButtonColor = true, TextScaled = true, BorderSizePixel = 0,
+	}, parent)
+	for k, v in pairs(props or {}) do b[k] = v end
+	corner(b, 0.22)
+	make("UITextSizeConstraint", { MaxTextSize = 34 }, b)
+	make("UIPadding", {
+		PaddingTop = UDim.new(0.2, 0), PaddingBottom = UDim.new(0.2, 0),
+		PaddingLeft = UDim.new(0.06, 0), PaddingRight = UDim.new(0.06, 0),
+	}, b)
+	local sc = make("UIScale", {}, b)
+	b.MouseButton1Down:Connect(function()
+		TweenService:Create(sc, TweenInfo.new(0.08), { Scale = 0.94 }):Play()
+	end)
+	local function up()
+		TweenService:Create(sc, TweenInfo.new(0.15, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	end
+	b.MouseButton1Up:Connect(up)
+	b.MouseLeave:Connect(up)
+	return b
+end
+
+local function aspect(parent, ratio)
+	-- В Roblox класс называется UIAspectRatioConstraint (не UIAspectRatio)
+	pcall(function()
+		return make("UIAspectRatioConstraint", {
+			AspectRatio = ratio, AspectType = Enum.AspectType.FitWithinMaxSize,
+			DominantAxis = Enum.DominantAxis.Width,
+		}, parent)
+	end)
+end
+
+----------------------------------------------------------------
+-- ГЛАВНЫЙ ЭКРАН
+----------------------------------------------------------------
+local old = playerGui:FindFirstChild("RNGdle")
+if old then old:Destroy() end
+
+local gui = make("ScreenGui", {
+	Name = "RNGdle", ResetOnSpawn = false, IgnoreGuiInset = true,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 10,
+}, playerGui)
+
+local bg = make("Frame", {
+	Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BorderSizePixel = 0, ClipsDescendants = true,
+}, gui)
+make("UIGradient", {
+	Color = ColorSequence.new(Color3.fromRGB(28, 30, 62), Color3.fromRGB(8, 9, 18)), Rotation = 90,
+}, bg)
+
+-- плавающие цифры на фоне
+local floaters = {}
+for i = 1, 20 do
+	local l = make("TextLabel", {
+		BackgroundTransparency = 1, Text = tostring(math.random(0, 9)), Font = Enum.Font.GothamBlack,
+		TextSize = math.random(30, 90), TextColor3 = WHITE, TextTransparency = 0.93,
+		Position = UDim2.fromScale(math.random(), math.random()), Size = UDim2.fromOffset(60, 60),
+	}, bg)
+	floaters[i] = { l = l, speed = 0.02 + math.random() * 0.045 }
+end
+RunService.Heartbeat:Connect(function(dt)
+	for _, f in ipairs(floaters) do
+		local y = f.l.Position.Y.Scale - f.speed * dt
+		if y < -0.15 then
+			y = 1.1
+			f.l.Text = tostring(math.random(0, 9))
+			f.l.Position = UDim2.fromScale(math.random(), y)
+		else
+			f.l.Position = UDim2.fromScale(f.l.Position.X.Scale, y)
+		end
+	end
+end)
+
+-- верхняя панель
+label(gui, {
+	Text = "RNGdle", Font = Enum.Font.GothamBlack, TextXAlignment = Enum.TextXAlignment.Left,
+	Position = UDim2.fromScale(0.1, 0.02), Size = UDim2.fromScale(0.38, 0.08),
+}, 46)
+
+local coinsLabel = label(gui, {
+	Text = "МОНЕТЫ: 0", TextColor3 = Color3.fromRGB(255, 215, 90), TextXAlignment = Enum.TextXAlignment.Right,
+	Position = UDim2.fromScale(0.5, 0.025), Size = UDim2.fromScale(0.47, 0.07),
+}, 34)
+
+-- редкость
+local rarityLabel = label(gui, {
+	Text = "НАЖМИ «КРУТИТЬ»", Font = Enum.Font.GothamBlack, TextColor3 = Color3.fromRGB(150, 156, 180),
+	Position = UDim2.fromScale(0.05, 0.14), Size = UDim2.fromScale(0.9, 0.1),
+}, 58)
+local rarityGrad = make("UIGradient", {
+	Enabled = false,
+	Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 80)),
+		ColorSequenceKeypoint.new(0.2, Color3.fromRGB(255, 220, 70)),
+		ColorSequenceKeypoint.new(0.4, Color3.fromRGB(80, 255, 120)),
+		ColorSequenceKeypoint.new(0.6, Color3.fromRGB(70, 200, 255)),
+		ColorSequenceKeypoint.new(0.8, Color3.fromRGB(190, 90, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 80, 80)),
+	}),
+}, rarityLabel)
+RunService.Heartbeat:Connect(function()
+	if rarityGrad.Enabled then
+		rarityGrad.Rotation = (tick() * 120) % 360
+	end
+end)
+
+local whyLabel = label(gui, {
+	Text = "Выпадет число из 6 цифр — чем необычнее, тем реже!", TextColor3 = Color3.fromRGB(150, 156, 180),
+	Font = Enum.Font.Gotham, Position = UDim2.fromScale(0.05, 0.245), Size = UDim2.fromScale(0.9, 0.05),
+}, 22)
+
+-- цифры
+local holder = make("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.45),
+	Size = UDim2.fromOffset(680, 130), BackgroundTransparency = 1,
+}, gui)
+local holderScale = make("UIScale", {}, holder)
+local camera = workspace.CurrentCamera
+local function fitHolder()
+	local v = camera.ViewportSize
+	holderScale.Scale = math.clamp(math.min(v.X / 1000, v.Y / 600), 0.45, 1.15)
+end
+fitHolder()
+camera:GetPropertyChangedSignal("ViewportSize"):Connect(fitHolder)
+make("UIListLayout", {
+	FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
+	VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0.02, 0),
+}, holder)
+
+local boxes, digitLabels, boxStrokes, boxScales = {}, {}, {}, {}
+for i = 1, 6 do
+	local box = make("Frame", {
+		Size = UDim2.new(0, 100, 1, 0), BackgroundColor3 = Color3.fromRGB(26, 29, 54),
+		BorderSizePixel = 0, LayoutOrder = i,
+	}, holder)
+	corner(box, 0.12)
+	boxStrokes[i] = stroke(box, Color3.fromRGB(70, 76, 120), 3)
+	boxScales[i] = make("UIScale", {}, box)
+	digitLabels[i] = label(box, {
+		Text = "?", Font = Enum.Font.GothamBlack, Size = UDim2.fromScale(1, 1),
+		TextColor3 = Color3.fromRGB(150, 156, 180),
+	}, 120)
+	make("UIPadding", {
+		PaddingTop = UDim.new(0.12, 0), PaddingBottom = UDim.new(0.12, 0),
+	}, digitLabels[i])
+	boxes[i] = box
+end
+
+-- кнопка крутить
+local rollBtn = button(gui, "КРУТИТЬ", Color3.fromRGB(46, 190, 100), {
+	AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.65), Size = UDim2.fromScale(0.36, 0.12),
+})
+make("UISizeConstraint", { MaxSize = Vector2.new(360, 90) }, rollBtn)
+stroke(rollBtn, Color3.fromRGB(20, 110, 60), 3)
+
+local autoBtn = button(gui, "АВТО: ЗАКРЫТО", Color3.fromRGB(70, 74, 100), {
+	AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.76), Size = UDim2.fromScale(0.26, 0.06),
+})
+make("UISizeConstraint", { MaxSize = Vector2.new(260, 60) }, autoBtn)
+
+local statsLabel = label(gui, {
+	Text = "", Font = Enum.Font.Gotham, TextColor3 = Color3.fromRGB(170, 176, 200),
+	Position = UDim2.fromScale(0.05, 0.815), Size = UDim2.fromScale(0.9, 0.04),
+}, 20)
+
+local shopBtn = button(gui, "МАГАЗИН", Color3.fromRGB(255, 150, 40), {
+	AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.25, 0.915), Size = UDim2.fromScale(0.22, 0.07),
+})
+make("UISizeConstraint", { MaxSize = Vector2.new(220, 60) }, shopBtn)
+local collBtn = button(gui, "КОЛЛЕКЦИЯ", Color3.fromRGB(150, 90, 250), {
+	AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.915), Size = UDim2.fromScale(0.22, 0.07),
+})
+make("UISizeConstraint", { MaxSize = Vector2.new(220, 60) }, collBtn)
+local histBtn = button(gui, "ИСТОРИЯ", Color3.fromRGB(55, 140, 240), {
+	AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.75, 0.915), Size = UDim2.fromScale(0.22, 0.07),
+})
+make("UISizeConstraint", { MaxSize = Vector2.new(220, 60) }, histBtn)
+
+-- вспышка экрана
+local flash = make("Frame", {
+	Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BackgroundTransparency = 1,
+	BorderSizePixel = 0, ZIndex = 50, Active = false,
+}, gui)
+
+----------------------------------------------------------------
+-- ПАНЕЛИ
+----------------------------------------------------------------
+local anyPanelOpen = false
+local panels = {}
+
+local function makePanel(title)
+	local overlay = make("TextButton", {
+		Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.35,
+		Text = "", AutoButtonColor = false, Visible = false, ZIndex = 20, BorderSizePixel = 0,
+	}, gui)
+	local frame = make("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.86, 0.84), BackgroundColor3 = Color3.fromRGB(20, 22, 42),
+		BorderSizePixel = 0, Active = true,
+	}, overlay)
+	corner(frame, 0.03)
+	stroke(frame, Color3.fromRGB(90, 96, 150), 3)
+	make("UISizeConstraint", { MaxSize = Vector2.new(760, 560) }, frame)
+
+	label(frame, {
+		Text = title, Font = Enum.Font.GothamBlack, TextXAlignment = Enum.TextXAlignment.Left,
+		Position = UDim2.fromScale(0.04, 0.02), Size = UDim2.fromScale(0.7, 0.1),
+	}, 36)
+
+	local close = button(frame, "X", Color3.fromRGB(220, 60, 70), {
+		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 12), Size = UDim2.fromOffset(44, 44),
+	})
+
+	local list = make("ScrollingFrame", {
+		Position = UDim2.fromScale(0.03, 0.15), Size = UDim2.fromScale(0.94, 0.82),
+		BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 6,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), ScrollingDirection = Enum.ScrollingDirection.Y,
+	}, frame)
+	make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, list)
+
+	local panel = { overlay = overlay, list = list }
+	function panel.open()
+		if panel.refresh then panel.refresh() end
+		overlay.Visible = true
+		anyPanelOpen = true
+	end
+	function panel.close()
+		overlay.Visible = false
+		anyPanelOpen = false
+	end
+	close.MouseButton1Click:Connect(panel.close)
+	overlay.MouseButton1Click:Connect(function(x, y)
+		-- закрываем только по клику вне окна, чтобы не мешать кнопкам внутри
+		local p, s = frame.AbsolutePosition, frame.AbsoluteSize
+		if x < p.X or x > p.X + s.X or y < p.Y or y > p.Y + s.Y then
+			panel.close()
+		end
+	end)
+	panels[#panels + 1] = panel
+	return panel
+end
+
+local function clearList(list)
+	for _, c in ipairs(list:GetChildren()) do
+		if c:IsA("GuiObject") then c:Destroy() end
+	end
+end
+
+local function row(list, height, order)
+	local r = make("Frame", {
+		Size = UDim2.new(1, -10, 0, height), BackgroundColor3 = Color3.fromRGB(32, 35, 64),
+		BorderSizePixel = 0, LayoutOrder = order,
+	}, list)
+	corner(r, 0.12)
+	return r
+end
+
+local function simpleText(parent, text, pos, size, textSize, color, font, xalign)
+	return make("TextLabel", {
+		BackgroundTransparency = 1, Text = text, Position = pos, Size = size, TextSize = textSize,
+		TextColor3 = color or WHITE, Font = font or Enum.Font.GothamBold, TextWrapped = true,
+		TextXAlignment = xalign or Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
+	}, parent)
+end
+
+local function updateHud()
+	coinsLabel.Text = "МОНЕТЫ: " .. fmt(data.coins)
+	local best = data.best
+	local bestTxt = "—"
+	if best.t > 0 then
+		bestTxt = best.n .. " (" .. TIERS[best.t].name .. ")"
+	end
+	statsLabel.Text = "Круток: " .. fmt(data.rolls) .. "   |   Лучшее: " .. bestTxt .. "   |   Удача: +" .. data.luck
+end
+hooks.hud = updateHud
+
+-- МАГАЗИН
+local SHOP = {
+	{ key = "luck", name = "Удача", max = 10,
+		desc = "+1 попытка за уровень: игра выбирает лучшее из нескольких чисел.",
+		cost = function(l) return math.floor(40 * 1.9 ^ l) end },
+	{ key = "speed", name = "Скорость", max = 5,
+		desc = "Цифры останавливаются быстрее.",
+		cost = function(l) return math.floor(150 * 3 ^ l) end },
+	{ key = "auto", name = "Автокрутка", max = 1,
+		desc = "Открывает кнопку АВТО — игра крутит сама.",
+		cost = function() return 300 end },
+}
+
+local shop = makePanel("МАГАЗИН")
+
+local function itemLevel(item)
+	if item.key == "auto" then return data.auto and 1 or 0 end
+	return data[item.key]
+end
+
+function shop.refresh()
+	clearList(shop.list)
+	for i, item in ipairs(SHOP) do
+		local lvl = itemLevel(item)
+		local r = row(shop.list, 84, i)
+		simpleText(r, item.name .. "  (ур. " .. lvl .. "/" .. item.max .. ")",
+			UDim2.new(0, 14, 0, 8), UDim2.new(0.6, 0, 0, 26), 20)
+		simpleText(r, item.desc, UDim2.new(0, 14, 0, 36), UDim2.new(0.6, 0, 0, 44), 14,
+			Color3.fromRGB(170, 176, 200), Enum.Font.Gotham)
+		local text, color
+		if lvl >= item.max then
+			text, color = "МАКС", Color3.fromRGB(80, 84, 110)
+		else
+			local cost = item.cost(lvl)
+			text = fmt(cost) .. " монет"
+			color = data.coins >= cost and Color3.fromRGB(46, 190, 100) or Color3.fromRGB(190, 70, 70)
+		end
+		local b = button(r, text, color, {
+			AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0),
+			Size = UDim2.new(0.3, 0, 0, 46), TextScaled = false, TextSize = 17,
+		})
+		b.MouseButton1Click:Connect(function()
+			local l = itemLevel(item)
+			if l >= item.max then return end
+			local cost = item.cost(l)
+			if data.coins < cost then return end
+			data.coins -= cost
+			if item.key == "auto" then data.auto = true else data[item.key] += 1 end
+			dirty = true
+			updateHud()
+			shop.refresh()
+			if item.key == "auto" then
+				autoBtn.Text = "АВТО: ВЫКЛ"
+				autoBtn.BackgroundColor3 = Color3.fromRGB(90, 94, 130)
+			end
+		end)
+	end
+end
+
+-- КОЛЛЕКЦИЯ
+local collection = makePanel("КОЛЛЕКЦИЯ РЕДКОСТЕЙ")
+function collection.refresh()
+	clearList(collection.list)
+	for i, t in ipairs(TIERS) do
+		local r = row(collection.list, 92, i)
+		local bar = make("Frame", {
+			Size = UDim2.new(0, 8, 1, -16), Position = UDim2.new(0, 8, 0, 8),
+			BackgroundColor3 = t.color, BorderSizePixel = 0,
+		}, r)
+		corner(bar, 0.5)
+		simpleText(r, t.name, UDim2.new(0, 28, 0, 8), UDim2.new(0.5, 0, 0, 26), 21, t.color, Enum.Font.GothamBlack)
+		simpleText(r, "Шанс: 1 из " .. fmt(t.odds) .. "   |   Награда: " .. fmt(t.coins),
+			UDim2.new(0, 28, 0, 34), UDim2.new(0.7, 0, 0, 18), 14, Color3.fromRGB(200, 205, 225), Enum.Font.GothamBold)
+		simpleText(r, t.desc, UDim2.new(0, 28, 0, 54), UDim2.new(1, -150, 0, 34), 13,
+			Color3.fromRGB(150, 156, 180), Enum.Font.Gotham)
+		simpleText(r, "Найдено: " .. fmt(data.found[t.id] or 0), UDim2.new(1, -130, 0, 10),
+			UDim2.new(0, 120, 0, 22), 16, WHITE, Enum.Font.GothamBold, Enum.TextXAlignment.Right)
+	end
+end
+
+-- ИСТОРИЯ
+local history = makePanel("ПОСЛЕДНИЕ ВЫПАДЕНИЯ")
+function history.refresh()
+	clearList(history.list)
+	if #data.history == 0 then
+		local r = row(history.list, 50, 1)
+		simpleText(r, "Пока пусто. Покрути!", UDim2.new(0, 14, 0, 14), UDim2.new(1, -28, 0, 24), 18)
+		return
+	end
+	for i, h in ipairs(data.history) do
+		local t = TIERS[h.t]
+		local r = row(history.list, 46, i)
+		simpleText(r, h.n, UDim2.new(0, 14, 0, 8), UDim2.new(0.4, 0, 0, 30), 26, t.color, Enum.Font.GothamBlack)
+		simpleText(r, t.name, UDim2.new(1, -14, 0, 14), UDim2.new(0.5, 0, 0, 22), 17, t.color,
+			Enum.Font.GothamBold, Enum.TextXAlignment.Right).AnchorPoint = Vector2.new(1, 0)
+	end
+end
+
+shopBtn.MouseButton1Click:Connect(shop.open)
+collBtn.MouseButton1Click:Connect(collection.open)
+histBtn.MouseButton1Click:Connect(history.open)
+
+----------------------------------------------------------------
+-- РОЛЛ
+----------------------------------------------------------------
+local rolling = false
+local autoOn = false
+
+local function randomNumber()
+	local t = {}
+	for i = 1, 6 do t[i] = tostring(math.random(0, 9)) end
+	return table.concat(t)
+end
+
+local function rollOnce()
+	local bestN, bestT, bestWhy
+	for _ = 1, 1 + data.luck do
+		local n = randomNumber()
+		local t, why = classify(n)
+		if not bestN or t > bestT then bestN, bestT, bestWhy = n, t, why end
+	end
+	return bestN, bestT, bestWhy
+end
+
+local DIM = Color3.fromRGB(150, 156, 180)
+
+local function resetBoxes()
+	for i = 1, 6 do
+		boxStrokes[i].Color = Color3.fromRGB(70, 76, 120)
+		digitLabels[i].TextColor3 = DIM
+	end
+end
+
+local function pop(i)
+	boxScales[i].Scale = 1.25
+	TweenService:Create(boxScales[i], TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+end
+
+local function floatText(text, color)
+	local l = label(gui, {
+		Text = text, Font = Enum.Font.GothamBlack, TextColor3 = color,
+		AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.58), Size = UDim2.fromScale(0.4, 0.06),
+		ZIndex = 5,
+	}, 36)
+	TweenService:Create(l, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = UDim2.fromScale(0.5, 0.52), TextTransparency = 1,
+	}):Play()
+	task.delay(1.2, function() l:Destroy() end)
+end
+
+local function shake(power)
+	task.spawn(function()
+		local base = holder.Position
+		for _ = 1, 14 do
+			holder.Position = base + UDim2.fromOffset(math.random(-power, power), math.random(-power, power))
+			task.wait(0.03)
+		end
+		holder.Position = base
+	end)
+end
+
+local function doFlash(color, strength)
+	flash.BackgroundColor3 = color
+	flash.BackgroundTransparency = 1 - strength
+	TweenService:Create(flash, TweenInfo.new(0.9), { BackgroundTransparency = 1 }):Play()
+end
+
+local function showResult(num, tier, why)
+	local t = TIERS[tier]
+	rarityGrad.Enabled = (tier == 7)
+	rarityLabel.TextColor3 = (tier == 7) and WHITE or t.color
+	rarityLabel.Text = t.name
+	rarityLabel.TextTransparency = 0
+	whyLabel.Text = why .. "  •  шанс 1 из " .. fmt(t.odds)
+	whyLabel.TextColor3 = (tier == 7) and WHITE or t.color
+	for i = 1, 6 do
+		boxStrokes[i].Color = t.color
+		digitLabels[i].TextColor3 = (tier >= 2) and t.color or WHITE
+	end
+	-- пульс заголовка
+	local sc = rarityLabel:FindFirstChild("UIScale") or make("UIScale", {}, rarityLabel)
+	sc.Scale = 0.7
+	TweenService:Create(sc, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+
+	if tier >= 4 then doFlash(t.color, tier >= 6 and 0.6 or 0.35) end
+	if tier >= 5 then shake(tier >= 6 and 14 or 8) end
+	if tier >= 6 then
+		task.delay(0.35, function() doFlash(WHITE, 0.4) end)
+	end
+end
+
+local function roll()
+	if rolling then return end
+	rolling = true
+	rollBtn.Text = "..."
+	rollBtn.BackgroundColor3 = Color3.fromRGB(70, 74, 100)
+	resetBoxes()
+	rarityLabel.Text = "КРУТИМ..."
+	rarityLabel.TextColor3 = DIM
+	rarityGrad.Enabled = false
+	whyLabel.Text = " "
+
+	local num, tier, why = rollOnce()
+	local gap = math.max(0.08, 0.38 - data.speed * 0.06)
+	local stopped = {}
+	local spinning = true
+
+	task.spawn(function()
+		while spinning do
+			for i = 1, 6 do
+				if not stopped[i] then digitLabels[i].Text = tostring(math.random(0, 9)) end
+			end
+			task.wait(0.045)
+		end
+	end)
+
+	for i = 1, 6 do
+		local wait = gap
+		if tier >= 5 and i >= 5 then wait = gap * 3 end
+		if tier >= 6 and i == 6 then wait = gap * 5 end
+		task.wait(wait)
+		stopped[i] = true
+		digitLabels[i].Text = num:sub(i, i)
+		digitLabels[i].TextColor3 = WHITE
+		pop(i)
+	end
+	spinning = false
+
+	-- данные
+	local t = TIERS[tier]
+	data.rolls += 1
+	data.coins += t.coins
+	data.found[t.id] = (data.found[t.id] or 0) + 1
+	if tier >= data.best.t then data.best = { n = num, t = tier } end
+	table.insert(data.history, 1, { n = num, t = tier })
+	while #data.history > 25 do table.remove(data.history) end
+	dirty = true
+
+	showResult(num, tier, why)
+	floatText("+" .. fmt(t.coins), Color3.fromRGB(255, 215, 90))
+	updateHud()
+
+	rolling = false
+	rollBtn.Text = "КРУТИТЬ"
+	rollBtn.BackgroundColor3 = Color3.fromRGB(46, 190, 100)
+end
+
+rollBtn.MouseButton1Click:Connect(roll)
+
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if input.KeyCode == Enum.KeyCode.Space and not anyPanelOpen then roll() end
+end)
+
+local function refreshAutoBtn()
+	if not data.auto then
+		autoBtn.Text = "АВТО: ЗАКРЫТО"
+		autoBtn.BackgroundColor3 = Color3.fromRGB(70, 74, 100)
+	elseif autoOn then
+		autoBtn.Text = "АВТО: ВКЛ"
+		autoBtn.BackgroundColor3 = Color3.fromRGB(46, 190, 100)
+	else
+		autoBtn.Text = "АВТО: ВЫКЛ"
+		autoBtn.BackgroundColor3 = Color3.fromRGB(90, 94, 130)
+	end
+end
+
+hooks.auto = refreshAutoBtn
+
+autoBtn.MouseButton1Click:Connect(function()
+	if not data.auto then
+		shop.open()
+		return
+	end
+	autoOn = not autoOn
+	refreshAutoBtn()
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(0.35)
+		if autoOn and not rolling and not anyPanelOpen then roll() end
+	end
+end)
+
+refreshAutoBtn()
+updateHud()
+
+end)
+if not __ok then
+	warn("[RNGdle] ОШИБКА: " .. tostring(__err))
+	pcall(function()
+		local pg = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+		local prev = pg:FindFirstChild("RNGdleError")
+		if prev then prev:Destroy() end
+		local sg = Instance.new("ScreenGui")
+		sg.Name = "RNGdleError"
+		sg.DisplayOrder = 999
+		sg.ResetOnSpawn = false
+		sg.IgnoreGuiInset = true
+		sg.Parent = pg
+		local f = Instance.new("Frame")
+		f.Size = UDim2.fromScale(1, 1)
+		f.BackgroundColor3 = Color3.fromRGB(60, 10, 20)
+		f.BorderSizePixel = 0
+		f.Parent = sg
+		local t = Instance.new("TextLabel")
+		t.Size = UDim2.fromScale(0.9, 0.8)
+		t.Position = UDim2.fromScale(0.05, 0.1)
+		t.BackgroundTransparency = 1
+		t.Text = "ОШИБКА RNGdle (скинь этот текст разработчику):\n" .. tostring(__err)
+		t.TextColor3 = Color3.new(1, 1, 1)
+		t.TextSize = 20
+		t.TextWrapped = true
+		t.Font = Enum.Font.GothamBold
+		t.Parent = f
+	end)
+end
+]]></ProtectedString></Properties></Item></Item></Item>
+</roblox>
